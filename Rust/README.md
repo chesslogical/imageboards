@@ -1,4 +1,5 @@
- ![b](https://github.com/user-attachments/assets/7b410368-b14c-4577-be24-8d919a4aa2ed)    ![8](https://github.com/user-attachments/assets/c6f4370d-36ad-47f7-a57f-6ac5aa7f2a52)        ![d](https://github.com/user-attachments/assets/eb0465b9-1925-4732-a0ff-2fe8f3e52b30)
+![8](https://github.com/user-attachments/assets/deedff61-3319-4a40-a8e1-94a082716eec)
+
 
 
 # Why Rust is Far Superior to Go and Node.js for Web Applications
@@ -46,3 +47,22 @@ In 2026, with web apps pushing boundaries in speed and reliability, Rust's desig
 ## Conclusion
 
 Rust isn't just competing with Go and Node.js; it's redefining what's possible in web development. Its superior performance, safety, concurrency, and ecosystem make it the go-to language for building robust, scalable web apps. If you're starting a new project or refactoring an existing one, choose Rust—you won't look back.
+
+
+
+
+
+
+![d](https://github.com/user-attachments/assets/ebad9452-8e48-4008-bb16-e880bc3a858b)
+
+
+![b](https://github.com/user-attachments/assets/037629cc-c694-47c6-8b2b-2615a22f3058)
+
+
+
+
+
+
+
+
+
