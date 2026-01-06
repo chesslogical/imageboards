@@ -53,10 +53,7 @@ Rust isn't just competing with Go and Node.js; it's redefining what's possible i
 
 
 
-![d](https://github.com/user-attachments/assets/ebad9452-8e48-4008-bb16-e880bc3a858b)
-
-
-![b](https://github.com/user-attachments/assets/037629cc-c694-47c6-8b2b-2615a22f3058)
+![d](https://github.com/user-attachments/assets/ebad9452-8e48-4008-bb16-e880bc3a858b) ![b](https://github.com/user-attachments/assets/037629cc-c694-47c6-8b2b-2615a22f3058)
 
 
 
