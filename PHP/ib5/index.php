@@ -190,25 +190,24 @@ if ($mode === 'manage') {
         $canmanage = true;
     }
     if (!$canmanage) {
-        echo <<<HTML
+        ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manage - BOARD_TITLE</title>
+    <title><?php echo BOARD_TITLE . ' - Manage'; ?></title>
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
     <header>
-        <h1>BOARD_TITLE</h1>
-        <div class="subtitle">BOARD_SUBTITLE</div>
+        <h1><?php echo BOARD_TITLE; ?></h1>
     </header>
     <hr>
-    <center><form method="POST" action="?mode=manage">
-    Password: <input type="password" name="managepassword"> <input type="submit" value="Login">
-    </form></center>
-HTML;
+    <div class="center"><form method="POST" action="?mode=manage">
+    Password: <input type="password" name="managepassword" required> <input type="submit" value="Login">
+    </form></div>
+        <?php
         if (isset($login_error)) echo '<p>' . $login_error . '</p>';
         echo '</body></html>';
         exit;
@@ -288,45 +287,60 @@ HTML;
         header('Location: ' . $_SERVER['PHP_SELF'] . '?mode=manage');
         exit;
     }
-    // Fetch all entries using UNION
-    $stmt = $db->query('SELECT id, "post" as type, postiphash, name, title, message, created_at, deleted, sticky, locked, NULL as post_id FROM posts
-                        UNION
-                        SELECT id, "reply" as type, postiphash, name, NULL as title, message, created_at, deleted, 0 as sticky, 0 as locked, post_id FROM replies
-                        ORDER BY created_at DESC');
-    $entries = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    $allentries = count($entries);
-    $totalpages = (int)ceil($allentries / POSTS_PER_PAGE);
+    // Fetch posts sorted like the board
+    $postStmt = $db->query('SELECT * FROM posts ORDER BY sticky DESC, updated_at DESC');
+    $posts = $postStmt->fetchAll(PDO::FETCH_ASSOC);
+    // Fetch all replies and group by post_id
+    $replyStmt = $db->query('SELECT * FROM replies ORDER BY created_at DESC');
+    $allReplies = $replyStmt->fetchAll(PDO::FETCH_ASSOC);
+    $groupedReplies = [];
+    foreach ($allReplies as $reply) {
+        $groupedReplies[$reply['post_id']][] = $reply;
+    }
+    // Pagination based on posts only (since replies are nested)
+    $allPosts = count($posts);
+    $totalpages = (int)ceil($allPosts / POSTS_PER_PAGE);
     $pagenumber = (int)($_GET['page'] ?? 0);
     if ($pagenumber < 0) $pagenumber = 0;
     if ($pagenumber >= $totalpages) $pagenumber = $totalpages - 1;
-    $pageentries = array_slice($entries, $pagenumber * POSTS_PER_PAGE, POSTS_PER_PAGE);
+    $pagePosts = array_slice($posts, $pagenumber * POSTS_PER_PAGE, POSTS_PER_PAGE);
     $lockbutton = file_exists(LOCKFILE)
         ? '<a href="?mode=manage&togglelock"><button>Unlock Posting</button></a>'
         : '<a href="?mode=manage&togglelock"><button>Lock Posting</button></a>';
-    echo <<<HTML
+    ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manage - BOARD_TITLE</title>
+    <title><?php echo BOARD_TITLE . ' - Manage'; ?></title>
     <link rel="stylesheet" href="css/styles.css">
+    <script>
+        function toggleReplies(postId) {
+            var replies = document.getElementById('replies-' + postId);
+            var button = document.getElementById('toggle-' + postId);
+            if (replies.style.display === 'none' || replies.style.display === '') {
+                replies.style.display = 'table-row-group';
+                button.textContent = 'Hide Replies';
+            } else {
+                replies.style.display = 'none';
+                button.textContent = 'Show Replies';
+            }
+        }
+    </script>
 </head>
 <body>
     <header>
-        <h1>BOARD_TITLE</h1>
-        <div class="subtitle">BOARD_SUBTITLE</div>
+        <h1><?php echo BOARD_TITLE; ?></h1>
     </header>
     <hr>
-    <center>$lockbutton</center>
+    <div class="center"><?php echo $lockbutton; ?></div>
     <br>
-    <table border="0" cellpadding="5" style="margin:auto;">
-    <tr bgcolor="#6080f6"><th>#</th><th>Type</th><th>Post ID</th><th>Title</th><th>Name</th><th>Message</th><th>Time</th><th>Poster ID</th><th>Actions</th></tr>
-HTML;
-    foreach ($pageentries as $idx => $p) {
+    <table class="manage-table">
+    <tr class="manage-header"><th>#</th><th>Title</th><th>Name</th><th>Message</th><th>Time</th><th>Poster ID</th><th>Replies</th><th>Actions</th></tr>
+    <?php
+    foreach ($pagePosts as $idx => $p) {
         $id = $p['id'];
-        $type = $p['type'];
-        $post_id = $p['post_id'] ?? '';
         $title = htmlspecialchars($p['title'] ?? '');
         $name = htmlspecialchars($p['name']);
         $raw_message = $p['message'];
@@ -334,60 +348,97 @@ HTML;
         $message = htmlspecialchars($display_message);
         $time = $p['created_at'];
         $posterhash = $p['postiphash'] ?? '';
-        $bg = ($idx % 2) ? "#d6d6f6" : "#f6f6f6";
+        $replies = $groupedReplies[$id] ?? [];
+        $replyCount = count($replies);
+        $row_class = ($idx % 2) ? "manage-row-even" : "manage-row-odd";
         $lock_text = $p['locked'] ? 'Unlock' : 'Lock';
         $sticky_text = $p['sticky'] ? 'Unsticky' : 'Sticky';
-        echo "<tr bgcolor='$bg'>
+        $deleted = $p['deleted'] == 1;
+        echo "<tr class=\"$row_class\">
                 <td>$id</td>
-                <td>$type</td>
-                <td>$post_id</td>
                 <td>$title</td>
                 <td>$name</td>
                 <td>$message</td>
                 <td>$time</td>
                 <td>$posterhash</td>
+                <td>$replyCount</td>
                 <td>
                     <form method='POST' action='?mode=manage'>
                         <input type='hidden' name='page' value='$pagenumber'>";
-        if ($type === 'reply') {
-            echo "<input type='hidden' name='post_id' value='$post_id'>";
-        }
-        if ($p['deleted'] == 0) {
-            $delete_name = $type === 'post' ? 'delete' : 'delete_reply';
-            echo "<button type='submit' name='$delete_name' value='$id'>Delete</button><br>";
+        if (!$deleted) {
+            echo "<button type='submit' name='delete' value='$id'>Delete</button><br>";
         } else {
             echo "<i>Deleted</i><br>";
         }
-        if ($type === 'post') {
-            echo "<button type='submit' name='toggle_lock' value='$id'>$lock_text</button><br>
-                  <button type='submit' name='toggle_sticky' value='$id'>$sticky_text</button><br>
-                  <button type='submit' name='recount' value='$id'>Recount</button>";
+        echo "<button type='submit' name='toggle_lock' value='$id'>$lock_text</button><br>
+              <button type='submit' name='toggle_sticky' value='$id'>$sticky_text</button><br>
+              <button type='submit' name='recount' value='$id'>Recount</button>
+                    </form>";
+        if ($replyCount > 0) {
+            echo "<button id='toggle-$id' onclick='toggleReplies($id)'>Show Replies</button>";
         }
-        echo "</form>
-                </td>
+        echo "</td>
             </tr>";
+        // Nested replies (hidden by default)
+        if ($replyCount > 0) {
+            echo "<tbody id='replies-$id' style='display:none;'>";
+            foreach ($replies as $rIdx => $r) {
+                $rId = $r['id'];
+                $rName = htmlspecialchars($r['name']);
+                $rRawMessage = $r['message'];
+                $rDisplayMessage = mb_strlen($rRawMessage, 'UTF-8') > MAX_PREVIEW_CHARS ? mb_substr($rRawMessage, 0, MAX_PREVIEW_CHARS, 'UTF-8') . '...' : $rRawMessage;
+                $rMessage = htmlspecialchars($rDisplayMessage);
+                $rTime = $r['created_at'];
+                $rPosterhash = $r['postiphash'] ?? '';
+                $rDeleted = $r['deleted'] == 1;
+                $rRowClass = (($idx + $rIdx + 1) % 2) ? "manage-reply-row-even" : "manage-reply-row-odd";
+                echo "<tr class=\"$rRowClass\">
+                        <td colspan='8' style='padding-left: 20px;'>
+                            <strong>Reply #$rId</strong>: $rName - $rMessage ($rTime, Poster: $rPosterhash)
+                            <form method='POST' action='?mode=manage' style='display:inline;'>
+                                <input type='hidden' name='page' value='$pagenumber'>
+                                <input type='hidden' name='post_id' value='$id'>";
+                if (!$rDeleted) {
+                    echo "<button type='submit' name='delete_reply' value='$rId'>Delete Reply</button>";
+                } else {
+                    echo "<i>Deleted</i>";
+                }
+                echo "</form>
+                        </td>
+                      </tr>";
+            }
+            echo "</tbody>";
+        }
     }
-    echo "</table>";
-    // Pagination
-    echo "<table align='center' border='1'><tbody><tr>";
-    if ($pagenumber > 0) {
-        $prevpage = "?mode=manage&page=" . ($pagenumber - 1);
-        echo "<td><a href='$prevpage'><button>Previous</button></a></td><td>";
-    } else {
-        echo "<td>Previous</td><td>";
-    }
-    for ($i = 0; $i < $totalpages; $i++) {
-        $href = "?mode=manage&page=" . $i;
-        echo ($i === $pagenumber) ? "[<b>$i</b>]&nbsp;" : "[<a href='$href'>$i</a>]&nbsp;";
-    }
-    if ($pagenumber < $totalpages - 1) {
-        $nextpage = "?mode=manage&page=" . ($pagenumber + 1);
-        echo "</td><td><a href='$nextpage'><button>Next</button></a></td>";
-    } else {
-        echo "</td><td>Next</td>";
-    }
-    echo "</tr></tbody></table><hr><div style='float: right;'>[<a href='index.php'>Return</a>]</div><br clear='all'>";
-    echo "</body></html>";
+    ?>
+    </table>
+    <div class="pagination">
+        <?php
+        if ($pagenumber > 0) {
+            $prevpage = "?mode=manage&page=" . ($pagenumber - 1);
+            echo '<a href="' . $prevpage . '">Previous</a>';
+        } else {
+            echo '<span>Previous</span>';
+        }
+        for ($i = 0; $i < $totalpages; $i++) {
+            if ($i === $pagenumber) {
+                echo '<span class="current">' . $i . '</span>';
+            } else {
+                $href = "?mode=manage&page=" . $i;
+                echo '<a href="' . $href . '">' . $i . '</a>';
+            }
+        }
+        if ($pagenumber < $totalpages - 1) {
+            $nextpage = "?mode=manage&page=" . ($pagenumber + 1);
+            echo '<a href="' . $nextpage . '">Next</a>';
+        } else {
+            echo '<span>Next</span>';
+        }
+        ?>
+    </div><hr><div class="return-link">[<a href="index.php">Return</a>]</div><br clear="all">
+</body>
+</html>
+<?php
     exit;
 }
 function getUniqueFilename(string $directory, string $originalFilename): string {
@@ -649,7 +700,7 @@ $post_id = filter_input(INPUT_GET, 'post_id', FILTER_VALIDATE_INT) ?: null;
             <table class="post-table">
                 <tbody>
                     <tr><th>Name</th><td><input type="text" name="name" size="25" maxlength="35" autocomplete="off" placeholder="Anonymous"></td></tr>
-                    <tr><th>Reply</th><td><textarea name="message" rows="5" cols="35"></textarea></td></tr>
+                    <tr><th>Reply</th><td><textarea name="message" rows="5" cols="35" required></textarea></td></tr>
                     <tr><th></th><td><input type="submit" value="Post" /></td></tr>
                 </tbody>
             </table>
@@ -676,8 +727,8 @@ $post_id = filter_input(INPUT_GET, 'post_id', FILTER_VALIDATE_INT) ?: null;
             <table class="post-table">
                 <tbody>
                     <tr><th>Name</th><td><input type="text" name="name" size="25" maxlength="35" autocomplete="off" placeholder="Anonymous"></td></tr>
-                    <tr><th>Subject</th><td><input type="text" name="title" size="25" maxlength="100" autocomplete="off"></td></tr>
-                    <tr><th>Message</th><td><textarea name="message" rows="5" cols="35"></textarea></td></tr>
+                    <tr><th>Subject</th><td><input type="text" name="title" size="25" maxlength="100" autocomplete="off" required></td></tr>
+                    <tr><th>Message</th><td><textarea name="message" rows="5" cols="35" required></textarea></td></tr>
                     <tr><th>File</th><td><input type="file" name="media" accept="image/jpeg, image/png, image/gif, image/webp, video/webm, video/mp4"></td></tr>
                     <tr><th></th><td><input type="submit" value="Post" /></td></tr>
                 </tbody>
@@ -702,7 +753,7 @@ $post_id = filter_input(INPUT_GET, 'post_id', FILTER_VALIDATE_INT) ?: null;
             <?php endfor; ?>
         </div>
     <?php endif; ?>
-    <div style="float: right;">[<a href="?mode=manage">Manage</a>]</div>
+    <div class="return-link">[<a href="?mode=manage">Manage</a>]</div>
     <br clear="all">
 </body>
 </html>
